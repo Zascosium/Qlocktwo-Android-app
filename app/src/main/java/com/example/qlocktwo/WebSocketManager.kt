@@ -1,5 +1,6 @@
 package com.example.qlocktwo
 
+import android.content.Context
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -38,17 +39,31 @@ class WebSocketManager {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    fun connect() {
-        if (session?.isActive == true) return
+    private var currentHost: String = "192.168.3.210"
+    private var currentPort: Int = 81
 
+    fun connectWithPrefs(context: Context) {
+        val prefs = context.getSharedPreferences("QlockSettings", Context.MODE_PRIVATE)
+        val host = prefs.getString("ws_ip", "192.168.3.210") ?: "192.168.3.210"
+        val port = prefs.getInt("ws_port", 81)
+        connect(host, port)
+    }
+
+    fun connect(host: String = currentHost, port: Int = currentPort) {
+        if (session?.isActive == true && host == currentHost && port == currentPort) return
+
+        currentHost = host
+        currentPort = port
         _connectionStatus.value = ConnectionStatus.CONNECTING
 
         scope.launch {
             try {
-                client.webSocket(host = "192.168.3.210", port = 81, path = "/ws") {
+                client.webSocket(host = host, port = port, path = "/ws") {
                     session = this
                     _connectionStatus.value = ConnectionStatus.CONNECTED
                     println("WebSocket connection established.")
+                    // Nach Verbindungsaufbau Einstellungen anfordern
+                    send(Frame.Text("GET_SETTINGS"))
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
                             messages.emit(frame.readText())
@@ -56,7 +71,7 @@ class WebSocketManager {
                     }
                 }
             } catch (e: Exception) {
-                println("WebSocket connection failed: ${e.message}")
+                println("WebSocket connection failed: \\${e.message}")
                 _connectionStatus.value = ConnectionStatus.ERROR
             } finally {
                 println("WebSocket connection closed.")

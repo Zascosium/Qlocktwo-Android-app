@@ -1,5 +1,6 @@
 package com.example.qlocktwo.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,17 +30,13 @@ fun TemperatureScreen(
     colorViewModel: ColorViewModel,
     webSocketManager: WebSocketManager
 ) {
-    var temperature by remember { mutableIntStateOf(20) }
-    val lastMessage by webSocketManager.messages.collectAsState(initial = "")
-
-    // Parse temperature from WebSocket messages
-    LaunchedEffect(lastMessage) {
-        if (lastMessage.startsWith("TEMP:")) {
-            val temp = lastMessage.removePrefix("TEMP:").toIntOrNull()
-            if (temp != null) {
-                temperature = temp
-            }
-        }
+    val allMessages by webSocketManager.messages.collectAsState(initial = "")
+    // Logging der empfangenen Nachricht
+    Log.d("TemperatureScreen", "Received WebSocket message: $allMessages")
+    // Extrahiere die letzte TEMP-Nachricht aus dem Flow
+    val temperature = remember(allMessages) {
+        val tempMsg = allMessages.split("\n").lastOrNull { it.startsWith("TEMP:") }
+        tempMsg?.removePrefix("TEMP:")?.toIntOrNull() ?: 20
     }
 
     val matrix = listOf(

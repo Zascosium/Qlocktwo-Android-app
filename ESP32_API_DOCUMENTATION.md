@@ -163,6 +163,46 @@ MATRIX_CLEAR:5,5     # Clear letter 'A'
 
 ---
 
+## 5. Einstellungen abfragen und synchronisieren
+
+### App → ESP32: Einstellungen anfordern
+```
+GET_SETTINGS
+```
+**Beschreibung:**
+- Wird automatisch von der App nach erfolgreichem WebSocket-Connect gesendet.
+- Fordert den ESP32 auf, alle aktuellen Einstellungen (z.B. Zeitplan, Start-/Endzeit, Farbe, Helligkeit) an die App zu senden.
+
+### ESP32 → App: Aktuelle Einstellungen senden
+```
+SETTINGS:schedule_enabled,start_hour,start_minute,end_hour,end_minute,color_r,color_g,color_b,brightness
+```
+**Parameter:**
+- `schedule_enabled`: 0 (aus) oder 1 (an)
+- `start_hour`: Startstunde (0-23)
+- `start_minute`: Startminute (0-59)
+- `end_hour`: Endstunde (0-23)
+- `end_minute`: Endminute (0-59)
+- `color_r`: Rotwert (0-255)
+- `color_g`: Grünwert (0-255)
+- `color_b`: Blauwert (0-255)
+- `brightness`: Helligkeit (0-255)
+
+**Beispiel:**
+```
+SETTINGS:1,7,0,22,0,255,0,0,200
+```
+(Schedule aktiv, 7:00-22:00, Farbe Rot, Helligkeit 200)
+
+**Wann gesendet:**
+- Als Antwort auf `GET_SETTINGS` (direkt nach Verbindungsaufbau)
+- Optional: Bei Änderungen der Einstellungen
+
+**Hinweis:**
+- Die App aktualisiert ihre UI mit den empfangenen Werten.
+
+---
+
 ## Screen-Specific Behavior
 
 ### Clock Screen
