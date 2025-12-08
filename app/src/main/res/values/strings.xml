@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Qlocktwo</string>
+    <string name="widget_description">Quick mode switcher for QLOCKTWO</string>
+</resources>
