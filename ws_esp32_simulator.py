@@ -7,8 +7,9 @@ PORT = 81
 PATH = '/ws'
 
 # Beispiel-Einstellungen, die simuliert werden
-SETTINGS_MSG = 'SETTINGS:1,7,0,22,0,255,0,0,200'  # Schedule an, 7:00-22:00, Rot, Helligkeit 200
-TEMP_MSG = 'TEMP:25'
+SCHEDULE_MSG = 'SCHEDULE:1,22,0,7,0'
+SETTINGS_MSG='SETTINGS: MATRIX, 255,255,255,10'  #Rot, Helligkeit 200'
+TEMP_MSG = 'TEMP:9'
 
 async def handler(websocket):
     print(f'Client verbunden: {websocket.remote_address}')
@@ -17,6 +18,8 @@ async def handler(websocket):
     print(f'Sende: {TEMP_MSG}')
     await websocket.send(SETTINGS_MSG)
     print(f'Sende: {SETTINGS_MSG}')
+    await websocket.send(SCHEDULE_MSG)
+    print(f'Sende: {SCHEDULE_MSG}')
     try:
         async for message in websocket:
             print(f'Empfangen: {message}')

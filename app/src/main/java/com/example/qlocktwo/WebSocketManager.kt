@@ -27,11 +27,15 @@ enum class ConnectionStatus {
 
 class WebSocketManager {
 
-    val messages = MutableSharedFlow<String>(replay = 1)
+    val messages = MutableSharedFlow<String>(replay = 0)
     private var session: DefaultWebSocketSession? = null
 
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
+
+    // StateFlow für aktuelle Settings, damit mehrere Komponenten darauf zugreifen können
+    private val _currentSettings = MutableStateFlow<String?>(null)
+    val currentSettings: StateFlow<String?> = _currentSettings.asStateFlow()
 
     private val client = HttpClient(CIO) {
         install(WebSockets)
@@ -66,7 +70,15 @@ class WebSocketManager {
                     send(Frame.Text("GET_SETTINGS"))
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
-                            messages.emit(frame.readText())
+                            val msg = frame.readText()
+                            println("WebSocket received: $msg")
+
+                            // Settings separat im StateFlow speichern
+                            if (msg.startsWith("SETTINGS:")) {
+                                _currentSettings.value = msg
+                            }
+
+                            messages.emit(msg)
                         }
                     }
                 }

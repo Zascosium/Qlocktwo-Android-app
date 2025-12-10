@@ -2,6 +2,7 @@ package com.example.qlocktwo.screens
 
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,12 +25,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -35,6 +41,8 @@ import com.example.qlocktwo.R
 import com.example.qlocktwo.WebSocketManager
 import kotlinx.coroutines.flow.collectLatest
 import java.util.Calendar
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.qlocktwo.viewmodels.ColorViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +65,33 @@ fun SettingsScreen(
     var port by remember { mutableStateOf(prefs.getInt("ws_port", 81).toString()) }
     var ipError by remember { mutableStateOf(false) }
     var portError by remember { mutableStateOf(false) }
+
+    var currentMode by remember { mutableStateOf("CLOCK") }
+    val colorViewModel: ColorViewModel = viewModel()
+
+    // Beobachte currentSettings StateFlow statt messages SharedFlow
+    val currentSettingsMsg by webSocketManager.currentSettings.collectAsState()
+
+    LaunchedEffect(currentSettingsMsg) {
+        currentSettingsMsg?.let { msg ->
+            println("SettingsScreen received: $msg")
+            if (msg.startsWith("SETTINGS:")) {
+                val parts = msg.removePrefix("SETTINGS:").split(",").map { it.trim() }
+                println("SettingsScreen parts: $parts size=${parts.size}")
+                if (parts.size >= 5) {
+                    val mode = parts[0]
+                    val r = parts[1].toIntOrNull() ?: 255
+                    val g = parts[2].toIntOrNull() ?: 0
+                    val b = parts[3].toIntOrNull() ?: 0
+                    val brightnessValue = parts[4].toFloatOrNull() ?: 255f
+                    println("SettingsScreen parsed: mode=$mode r=$r g=$g b=$b brightness=$brightnessValue")
+                    currentMode = mode
+                    colorViewModel.updateColor(Color(r / 255f, g / 255f, b / 255f))
+                    colorViewModel.updateBrightness(brightnessValue)
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -252,6 +287,77 @@ fun SettingsScreen(
                 }
             }
 
+            // Modus-Auswahl
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Modus wählen", style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val modes = listOf("CLOCK", "DIGITAL", "MATRIX", "TEMPERATURE")
+                        modes.forEach { mode ->
+                            Button(
+                                onClick = {
+                                    currentMode = mode
+                                    webSocketManager.sendMessage("SET_MODE:$mode")
+                                },
+                                colors = if (currentMode == mode)
+                                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                else
+                                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Text(mode)
+                            }
+                        }
+                    }
+                }
+            }
+            // Farb- und Helligkeitssteuerung
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Farbe wählen", style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val colors = listOf(
+                            Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Cyan, Color.Magenta, Color.White
+                        )
+                        colors.forEach { color ->
+                            Button(
+                                onClick = { colorViewModel.updateColor(color) },
+                                colors = ButtonDefaults.buttonColors(containerColor = color)
+                            ) {
+                                if (colorViewModel.selectedColor == color) Text("✓")
+                            }
+                        }
+                    }
+                    Text("Helligkeit: ${colorViewModel.brightness.toInt()}", style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Slider(
+                        value = colorViewModel.brightness,
+                        onValueChange = { colorViewModel.updateBrightness(it) },
+                        valueRange = 0f..255f,
+                        steps = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
@@ -272,34 +378,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(end = 6.dp)
                 )
                 Text("Einstellungen an Uhr senden")
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        webSocketManager.messages.collectLatest { msg ->
-            if (msg.startsWith("SETTINGS:")) {
-                val parts = msg.removePrefix("SETTINGS:").split(",")
-                if (parts.size >= 9) {
-                    val schedule = parts[0] == "1"
-                    val sHour = parts[1].toIntOrNull() ?: 7
-                    val sMin = parts[2].toIntOrNull() ?: 0
-                    val eHour = parts[3].toIntOrNull() ?: 22
-                    val eMin = parts[4].toIntOrNull() ?: 0
-                    // Farbe und Helligkeit werden hier nur geparst, aber nicht in der SettingsScreen angezeigt
-                    isScheduleEnabled = schedule
-                    startHour = sHour
-                    startMinute = sMin
-                    endHour = eHour
-                    endMinute = eMin
-                    prefs.edit()
-                        .putBoolean("schedule_enabled", schedule)
-                        .putInt("start_hour", sHour)
-                        .putInt("start_minute", sMin)
-                        .putInt("end_hour", eHour)
-                        .putInt("end_minute", eMin)
-                        .apply()
-                }
             }
         }
     }
