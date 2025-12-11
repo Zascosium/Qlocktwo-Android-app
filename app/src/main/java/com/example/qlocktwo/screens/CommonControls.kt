@@ -48,14 +48,26 @@ fun CommonControls(
     onSendMessage: ((String) -> Unit)? = null
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    var localBrightness by remember { mutableFloatStateOf(colorViewModel.brightness) }
 
-    // Debounce brightness updates with 50ms delay
-    LaunchedEffect(localBrightness) {
-        delay(50)
-        if (localBrightness != colorViewModel.brightness) {
-            colorViewModel.updateBrightness(localBrightness)
-            onSendMessage?.invoke(formatColorMessage(colorViewModel.selectedColor, localBrightness))
+    // Slider value that responds to both user input AND ViewModel updates
+    var sliderValue by remember { mutableFloatStateOf(colorViewModel.brightness) }
+
+    // Track if user is actively dragging the slider
+    var isDragging by remember { mutableStateOf(false) }
+
+    // Sync slider with ViewModel when ViewModel changes (e.g., from WebSocket)
+    LaunchedEffect(colorViewModel.brightness) {
+        if (!isDragging) {
+            sliderValue = colorViewModel.brightness
+        }
+    }
+
+    // Debounce slider changes and send to ViewModel + WebSocket
+    LaunchedEffect(sliderValue) {
+        if (isDragging) {
+            delay(50)
+            colorViewModel.updateBrightness(sliderValue)
+            onSendMessage?.invoke(formatColorMessage(colorViewModel.selectedColor, sliderValue))
         }
     }
 
@@ -87,9 +99,13 @@ fun CommonControls(
 
         // Brightness Slider (without label)
         Slider(
-            value = localBrightness,
+            value = sliderValue,
             onValueChange = { newValue ->
-                localBrightness = newValue
+                isDragging = true
+                sliderValue = newValue
+            },
+            onValueChangeFinished = {
+                isDragging = false
             },
             valueRange = 0f..255f,
             modifier = Modifier.weight(1f),

@@ -8,7 +8,7 @@ PATH = '/ws'
 
 # Beispiel-Einstellungen, die simuliert werden
 SCHEDULE_MSG = 'SCHEDULE:1,22,0,7,0'
-SETTINGS_MSG='SETTINGS: MATRIX, 255,255,255,10'  #Rot, Helligkeit 200'
+SETTINGS_MSG='SETTINGS: DIGITAL, 255,0,255,200'  #Rot, Helligkeit 200'
 TEMP_MSG = 'TEMP:9'
 
 async def handler(websocket):

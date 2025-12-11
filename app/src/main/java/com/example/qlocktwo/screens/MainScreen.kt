@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.Lifecycle
@@ -32,6 +33,17 @@ import com.example.qlocktwo.R
 import com.example.qlocktwo.WebSocketManager
 import com.example.qlocktwo.navigation.Screen
 import com.example.qlocktwo.viewmodels.ColorViewModel
+
+// Helper function to map SETTINGS mode string to screen route
+private fun modeToRoute(mode: String): String? = when (mode.uppercase()) {
+    "CLOCK" -> Screen.Clock.route
+    "DIGITAL" -> Screen.DigitalClock.route
+    "TEMPERATURE" -> Screen.Temperature.route
+    "TEMP" -> Screen.Temperature.route  // Handle both variants
+    "ALARM" -> Screen.Alarm.route
+    "MATRIX" -> Screen.Matrix.route
+    else -> null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +78,27 @@ fun MainScreen(
     val connectionStatus by webSocketManager.connectionStatus.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val context = LocalContext.current
+
+    // Navigate to saved mode on initial composition
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("QlockSettings", android.content.Context.MODE_PRIVATE)
+        val savedMode = prefs.getString("last_mode", null)
+
+        savedMode?.let { mode ->
+            val route = modeToRoute(mode)
+            route?.let {
+                // Navigate to saved mode screen
+                navController.navigate(route) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        }
+    }
 
     // Send mode change message to ESP32 when screen changes
     LaunchedEffect(currentRoute) {
@@ -79,6 +112,34 @@ fun MainScreen(
                 else -> null
             }
             modeMessage?.let { webSocketManager.sendMessage(it) }
+        }
+    }
+
+    // Auto-navigate to matching screen when SETTINGS received
+    LaunchedEffect(webSocketManager) {
+        webSocketManager.currentSettings.collect { settingsMsg ->
+            settingsMsg?.let { msg ->
+                if (msg.startsWith("SETTINGS:")) {
+                    val parts = msg.removePrefix("SETTINGS:").split(",").map { it.trim() }
+                    if (parts.isNotEmpty()) {
+                        val mode = parts[0]
+                        val route = modeToRoute(mode)
+
+                        // Only navigate if we have a valid route and not already on that screen
+                        route?.let {
+                            if (currentRoute != route) {
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -108,6 +169,10 @@ fun MainScreen(
                         label = { Text(screen.title) },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
+                            // Pop settings screen if it's currently showing
+                            if (currentRoute == "settings") {
+                                navController.popBackStack()
+                            }
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true

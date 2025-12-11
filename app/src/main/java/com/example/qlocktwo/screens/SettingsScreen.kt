@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -66,59 +68,19 @@ fun SettingsScreen(
     var ipError by remember { mutableStateOf(false) }
     var portError by remember { mutableStateOf(false) }
 
-    var currentMode by remember { mutableStateOf("CLOCK") }
-    val colorViewModel: ColorViewModel = viewModel()
-
-    // Beobachte currentSettings StateFlow statt messages SharedFlow
-    val currentSettingsMsg by webSocketManager.currentSettings.collectAsState()
-
-    LaunchedEffect(currentSettingsMsg) {
-        currentSettingsMsg?.let { msg ->
-            println("SettingsScreen received: $msg")
-            if (msg.startsWith("SETTINGS:")) {
-                val parts = msg.removePrefix("SETTINGS:").split(",").map { it.trim() }
-                println("SettingsScreen parts: $parts size=${parts.size}")
-                if (parts.size >= 5) {
-                    val mode = parts[0]
-                    val r = parts[1].toIntOrNull() ?: 255
-                    val g = parts[2].toIntOrNull() ?: 0
-                    val b = parts[3].toIntOrNull() ?: 0
-                    val brightnessValue = parts[4].toFloatOrNull() ?: 255f
-                    println("SettingsScreen parsed: mode=$mode r=$r g=$g b=$b brightness=$brightnessValue")
-                    currentMode = mode
-                    colorViewModel.updateColor(Color(r / 255f, g / 255f, b / 255f))
-                    colorViewModel.updateBrightness(brightnessValue)
-                }
-            }
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Einstellungen") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_menu_revert),
-                            contentDescription = "Zurück"
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
+    Scaffold { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Text(
                 text = "Allgemeine Einstellungen",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 4.dp)
             )
 
             // IP/Port Card
@@ -285,99 +247,6 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
-
-            // Modus-Auswahl
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Modus wählen", style = MaterialTheme.typography.titleMedium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val modes = listOf("CLOCK", "DIGITAL", "MATRIX", "TEMPERATURE")
-                        modes.forEach { mode ->
-                            Button(
-                                onClick = {
-                                    currentMode = mode
-                                    webSocketManager.sendMessage("SET_MODE:$mode")
-                                },
-                                colors = if (currentMode == mode)
-                                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                else
-                                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Text(mode)
-                            }
-                        }
-                    }
-                }
-            }
-            // Farb- und Helligkeitssteuerung
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Farbe wählen", style = MaterialTheme.typography.titleMedium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val colors = listOf(
-                            Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Cyan, Color.Magenta, Color.White
-                        )
-                        colors.forEach { color ->
-                            Button(
-                                onClick = { colorViewModel.updateColor(color) },
-                                colors = ButtonDefaults.buttonColors(containerColor = color)
-                            ) {
-                                if (colorViewModel.selectedColor == color) Text("✓")
-                            }
-                        }
-                    }
-                    Text("Helligkeit: ${colorViewModel.brightness.toInt()}", style = MaterialTheme.typography.bodyMedium)
-                    androidx.compose.material3.Slider(
-                        value = colorViewModel.brightness,
-                        onValueChange = { colorViewModel.updateBrightness(it) },
-                        valueRange = 0f..255f,
-                        steps = 10,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = {
-                    val message = if (isScheduleEnabled) {
-                        "SCHEDULE:ON,$startHour:$startMinute,$endHour:$endMinute"
-                    } else {
-                        "SCHEDULE:OFF"
-                    }
-                    webSocketManager.sendMessage(message)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_send),
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 6.dp)
-                )
-                Text("Einstellungen an Uhr senden")
             }
         }
     }

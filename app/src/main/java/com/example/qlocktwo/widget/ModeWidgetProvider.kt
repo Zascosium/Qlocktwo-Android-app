@@ -7,10 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import com.example.qlocktwo.R
-import com.example.qlocktwo.WebSocketManager
+import com.example.qlocktwo.widget.WidgetWebSocketClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class ModeWidgetProvider : AppWidgetProvider() {
@@ -53,26 +52,21 @@ class ModeWidgetProvider : AppWidgetProvider() {
             // Save new mode
             prefs.edit().putInt(PREF_CURRENT_MODE, nextMode).apply()
 
-            // Send mode change to ESP32
-            val webSocketManager = WebSocketManager()
-            val scope = CoroutineScope(Dispatchers.IO)
+            // Prepare mode message
+            val modeMessage = when (nextMode) {
+                MODE_CLOCK -> "MODE:CLOCK"
+                MODE_DIGITAL -> "MODE:DIGITAL"
+                MODE_TEMP -> "MODE:TEMP"
+                else -> "MODE:CLOCK"
+            }
 
-            scope.launch {
-                webSocketManager.connect()
-                // Wait a bit for connection to establish
-                delay(500)
-
-                val modeMessage = when (nextMode) {
-                    MODE_CLOCK -> "MODE:CLOCK"
-                    MODE_DIGITAL -> "MODE:DIGITAL"
-                    MODE_TEMP -> "MODE:TEMP"
-                    else -> "MODE:CLOCK"
+            // Send mode change to ESP32 via dedicated widget client (fire-and-forget)
+            CoroutineScope(Dispatchers.IO).launch {
+                val client = WidgetWebSocketClient(context)
+                val success = client.sendModeCommand(modeMessage)
+                if (!success) {
+                    println("Widget: Failed to send mode command, ESP32 may be unreachable")
                 }
-                webSocketManager.sendMessage(modeMessage)
-
-                // Disconnect after sending
-                delay(1000)
-                webSocketManager.disconnect()
             }
 
             // Update all widgets

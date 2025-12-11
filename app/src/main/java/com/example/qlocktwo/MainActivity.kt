@@ -1,5 +1,6 @@
 package com.example.qlocktwo
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,8 +24,7 @@ import com.example.qlocktwo.screens.MainScreen
 import com.example.qlocktwo.ui.theme.QlocktwoTheme
 import com.example.qlocktwo.viewmodels.ColorViewModel
 import com.example.qlocktwo.viewmodels.ColorViewModelFactory
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -37,24 +38,19 @@ class MainActivity : ComponentActivity() {
                 factory = ColorViewModelFactory(application)
             )
 
-            var isLoading by remember { mutableStateOf(true) }
+            // Observe connection status directly
+            val connectionStatus by webSocketManager.connectionStatus.collectAsState()
 
-            // Warte auf initiale Nachricht oder Timeout
-            LaunchedEffect(webSocketManager) {
-                // Warte maximal 5 Sekunden auf eine SETTINGS- oder TEMP-Nachricht
-                val result = withTimeoutOrNull(5000) {
-                    webSocketManager.messages.first { msg ->
-                        msg.startsWith("SETTINGS:") || msg.startsWith("TEMP:")
-                    }
-                }
+            // Add 2-second timeout for loading screen
+            var hasTimedOut by remember { mutableStateOf(false) }
 
-                if (result != null) {
-                    println("Initial message received: $result")
-                } else {
-                    println("Loading timeout - showing UI anyway")
-                }
-                isLoading = false
+            LaunchedEffect(Unit) {
+                delay(2000) // Wait 2 seconds
+                hasTimedOut = true
             }
+
+            // Show loading only if not connected AND timeout hasn't occurred
+            val isLoading = connectionStatus != ConnectionStatus.CONNECTED && !hasTimedOut
 
             // Kontinuierlich auf SETTINGS-Nachrichten hören und ColorViewModel aktualisieren
             LaunchedEffect(webSocketManager) {
@@ -64,13 +60,25 @@ class MainActivity : ComponentActivity() {
                         if (msg.startsWith("SETTINGS:")) {
                             val parts = msg.removePrefix("SETTINGS:").split(",").map { it.trim() }
                             if (parts.size >= 5) {
+                                // Extract mode (first parameter)
+                                val mode = parts[0]
+
+                                // Extract color and brightness
                                 val r = parts[1].toIntOrNull() ?: 255
                                 val g = parts[2].toIntOrNull() ?: 0
                                 val b = parts[3].toIntOrNull() ?: 0
                                 val brightness = parts[4].toFloatOrNull() ?: 255f
+
+                                // Save mode to SharedPreferences
+                                applicationContext.getSharedPreferences("QlockSettings", Context.MODE_PRIVATE)
+                                    .edit()
+                                    .putString("last_mode", mode)
+                                    .apply()
+
+                                // Update ColorViewModel
                                 colorViewModel.updateColor(androidx.compose.ui.graphics.Color(r / 255f, g / 255f, b / 255f))
                                 colorViewModel.updateBrightness(brightness)
-                                println("Settings applied to ColorViewModel: r=$r g=$g b=$b brightness=$brightness")
+                                println("Settings applied to ColorViewModel: r=$r g=$g b=$b brightness=$brightness mode=$mode")
                             }
                         }
                     }

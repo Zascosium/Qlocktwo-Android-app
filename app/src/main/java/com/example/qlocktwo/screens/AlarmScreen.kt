@@ -23,8 +23,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.qlocktwo.WebSocketManager
 import com.example.qlocktwo.viewmodels.ColorViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun AlarmScreen(
@@ -45,17 +48,29 @@ fun AlarmScreen(
     var minutes by remember { mutableIntStateOf(5) }
     var seconds by remember { mutableIntStateOf(0) }
 
+    var isRunning by remember { mutableStateOf(false) }
+    var remainingSeconds by remember { mutableIntStateOf(0) }
+
+    // Countdown effect - runs every second when timer is active
+    LaunchedEffect(isRunning, remainingSeconds) {
+        if (isRunning && remainingSeconds > 0) {
+            delay(1000L)
+            remainingSeconds--
+        } else if (isRunning && remainingSeconds == 0) {
+            isRunning = false
+            // Timer finished
+        }
+    }
+
     val totalSeconds = hours * 3600 + minutes * 60 + seconds
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         CommonControls(
-            modifier = Modifier.padding(top = 32.dp),
+            modifier = Modifier.padding(top = 48.dp),
             colorViewModel = colorViewModel,
             onSendMessage = webSocketManager::sendMessage
         )
@@ -74,8 +89,13 @@ fun AlarmScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
+            // Calculate display time - show remaining time when running, set time when stopped
+            val displayHours = if (isRunning) remainingSeconds / 3600 else hours
+            val displayMinutes = if (isRunning) (remainingSeconds % 3600) / 60 else minutes
+            val displaySeconds = if (isRunning) remainingSeconds % 60 else seconds
+
             Text(
-                text = String.format("%02d:%02d:%02d", hours, minutes, seconds),
+                text = String.format("%02d:%02d:%02d", displayHours, displayMinutes, displaySeconds),
                 fontSize = 64.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorViewModel.selectedColor
@@ -161,9 +181,13 @@ fun AlarmScreen(
         ) {
             Button(
                 onClick = {
-                    webSocketManager.sendMessage("TIMER:START:$totalSeconds")
+                    if (!isRunning && totalSeconds > 0) {
+                        remainingSeconds = totalSeconds
+                        isRunning = true
+                        webSocketManager.sendMessage("TIMER:START:$totalSeconds")
+                    }
                 },
-                enabled = totalSeconds > 0,
+                enabled = totalSeconds > 0 && !isRunning,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colorViewModel.selectedColor
@@ -178,8 +202,10 @@ fun AlarmScreen(
 
             OutlinedButton(
                 onClick = {
+                    isRunning = false
                     webSocketManager.sendMessage("TIMER:STOP")
                 },
+                enabled = isRunning,
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(Icons.Default.Close, contentDescription = "Stop")
@@ -191,6 +217,8 @@ fun AlarmScreen(
 
             OutlinedButton(
                 onClick = {
+                    isRunning = false
+                    remainingSeconds = 0
                     hours = 0
                     minutes = 0
                     seconds = 0

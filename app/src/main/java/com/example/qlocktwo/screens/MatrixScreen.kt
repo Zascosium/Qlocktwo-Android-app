@@ -52,8 +52,8 @@ fun MatrixScreen(
     ) {
         CommonControls(
             modifier = Modifier.padding(top = 48.dp),
-            colorViewModel = colorViewModel,
-            onSendMessage = webSocketManager::sendMessage
+            colorViewModel = colorViewModel
+            // onSendMessage removed - color changes don't send to WebSocket
         )
 
         Box(

@@ -13,3 +13,15 @@
 .externalNativeBuild
 .cxx
 local.properties
+/.venv
+
+# Build outputs
+app/build/
+**/build/
+
+# Kotlin metadata
+.kotlin/
+**/.kotlin/
+
+# IDE-specific folders
+.claude/

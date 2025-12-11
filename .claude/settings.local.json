@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:github.com)",
       "WebSearch",
-      "Bash(./gradlew build:*)"
+      "Bash(./gradlew build:*)",
+      "Bash(done)",
+      "Bash(./gradlew assembleDebug:*)"
     ],
     "deny": [],
     "ask": []
