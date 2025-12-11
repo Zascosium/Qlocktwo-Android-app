@@ -118,63 +118,82 @@ TIMER:RESET
 
 ### 4. Matrix Control (Custom LED Patterns)
 
-#### App → ESP32: Set Individual Letter Color
+#### App → ESP32: Set Individual LED Color
 ```
-MATRIX_SET:row,col,r,g,b,brightness
+MATRIX_SET:ledIndex,r,g,b,brightness
 ```
 
 **Parameters:**
-- `row`: Row index (0-10)
-- `col`: Column index (0-10)
+- `ledIndex`: LED position in the physical array (0-120)
 - `r`: Red component (0-255)
 - `g`: Green component (0-255)
 - `b`: Blue component (0-255)
-- `brightness`: Brightness for this letter (0-255)
+- `brightness`: Brightness for this LED (0-255)
 
 **Examples:**
 ```
-MATRIX_SET:0,0,255,0,0,200       # Set top-left letter 'E' to red
-MATRIX_SET:5,5,0,255,255,255     # Set letter 'A' to cyan at full brightness
-MATRIX_SET:10,10,128,0,128,150   # Set bottom-right letter 'R' to purple
+MATRIX_SET:110,255,0,0,200       # Set LED 110 (letter 'E') to red
+MATRIX_SET:60,0,255,255,255      # Set LED 60 (letter 'A') to cyan at full brightness
+MATRIX_SET:10,128,0,128,150      # Set LED 10 (letter 'R') to purple
 ```
 
-**Matrix Layout Reference:**
+**LED Array Layout:**
+The LEDs are arranged in a zigzag pattern (see led_setup.md for complete mapping):
 ```
-     0123456789A (columns)
-   ┌───────────┐
- 0 │ESKISTAFÜNF│
- 1 │ZEHNJEPSORM│
- 2 │AFAXZWANZIG│
- 3 │DREIVIERTEL│
- 4 │VORFUNKNACH│
- 5 │HALBAELFÜNF│
- 6 │EINSXAMZWEI│
- 7 │DREIPMJVIER│
- 8 │SECHSNLACHT│
- 9 │SIEBENZWÖLF│
-10 │ZEHNEUNKUHR│
-   └───────────┘
-(rows)
+Row  0: 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120  (ESKISTAFÜNF) →
+Row  1: 109, 108, 107, 106, 105, 104, 103, 102, 101, 100,  99  (ZEHNJEPSORM) ←
+Row  2:  88,  89,  90,  91,  92,  93,  94,  95,  96,  97,  98  (AFAXZWANZIG) →
+Row  3:  87,  86,  85,  84,  83,  82,  81,  80,  79,  78,  77  (DREIVIERTEL) ←
+Row  4:  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76  (VORFUNKNACH) →
+Row  5:  65,  64,  63,  62,  61,  60,  59,  58,  57,  56,  55  (HALBAELFÜNF) ←
+Row  6:  44,  45,  46,  47,  48,  49,  50,  51,  52,  53,  54  (EINSXAMZWEI) →
+Row  7:  43,  42,  41,  40,  39,  38,  37,  36,  35,  34,  33  (DREIPMJVIER) ←
+Row  8:  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32  (SECHSNLACHT) →
+Row  9:  21,  20,  19,  18,  17,  16,  15,  14,  13,  12,  11  (SIEBENZWÖLF) ←
+Row 10:   0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10  (ZEHNEUNKUHR) →
 ```
+Note: Even rows go left→right, odd rows go right→left (zigzag pattern)
 
-#### App → ESP32: Clear Individual Letter
+#### App → ESP32: Clear Individual LED
 ```
-MATRIX_CLEAR:row,col
+MATRIX_CLEAR:ledIndex
 ```
 
 **Parameters:**
-- `row`: Row index (0-10)
-- `col`: Column index (0-10)
+- `ledIndex`: LED position in the physical array (0-120)
 
 **Examples:**
 ```
-MATRIX_CLEAR:0,0     # Clear top-left letter 'E'
-MATRIX_CLEAR:5,5     # Clear letter 'A'
+MATRIX_CLEAR:110     # Clear LED 110 (letter 'E')
+MATRIX_CLEAR:60      # Clear LED 60 (letter 'A')
 ```
 
 **When sent:**
 - When user taps a letter in the Matrix screen to toggle it on/off
+- App automatically converts row/column to LED index using the zigzag pattern (MatrixScreen.kt:34-46)
 - Immediate transmission (no debouncing)
+
+#### App → ESP32: Clear All LEDs
+```
+MATRIX_CLEAR_ALL
+```
+
+**Parameters:** None
+
+**Description:** Clears all 121 LEDs (indices 0-120) in the matrix, setting them to off/default state.
+
+**Examples:**
+```
+MATRIX_CLEAR_ALL     # Clear entire matrix
+```
+
+**When sent:**
+- When user presses "Clear All" button on Matrix screen (MatrixScreen.kt:80-88)
+- Immediate transmission (no debouncing)
+- Provides bulk clear operation instead of 121 individual LED clears
+
+**ESP32 Implementation Note:**
+This is equivalent to sending 121 individual `MATRIX_CLEAR:N` commands but much more efficient. ESP32 should iterate through all LEDs 0-120 and turn them off.
 
 ---
 
@@ -304,9 +323,12 @@ SCHEDULE:OFF
 - **Note:** The app displays a visual countdown timer in the UI (AlarmScreen.kt:52-61). ESP32 can independently handle its own countdown or rely on the app's TIMER commands. When user presses Start, the app both sends the WebSocket message and begins displaying a countdown that decrements every second until reaching zero.
 
 ### Matrix Screen
-- **Sends:** `MATRIX_SET:row,col,r,g,b,brightness` and `MATRIX_CLEAR:row,col`
+- **Sends:**
+  - `MATRIX_SET:ledIndex,r,g,b,brightness` - Set individual LED
+  - `MATRIX_CLEAR:ledIndex` - Clear individual LED
+  - `MATRIX_CLEAR_ALL` - Clear all LEDs at once
 - **Receives:** Nothing specific
-- **Note:** Allows custom LED patterns with individual letter colors. Color selection in the color picker does NOT send WebSocket messages immediately - messages are only sent when the user taps a letter in the matrix grid (MatrixScreen.kt:53-57). This allows users to preview and adjust colors locally before applying them.
+- **Note:** Allows custom LED patterns with individual LED colors. Color selection in the color picker does NOT send WebSocket messages immediately - messages are only sent when the user taps a letter in the matrix grid (MatrixScreen.kt:101-122). The app automatically converts row/column coordinates to LED array indices (0-120) using the zigzag pattern defined in led_setup.md (MatrixScreen.kt:35-46). This allows users to preview and adjust colors locally before applying them. The "Clear All" button (MatrixScreen.kt:81-88) provides quick clearing of all 121 LEDs with a single command.
 
 ---
 
@@ -421,12 +443,26 @@ App: (Resets display to 00:00:00)
 ```
 App → ESP32: "MODE:MATRIX"                         # Switch to matrix mode
 # User selects red color in color picker (no message sent yet)
-App → ESP32: "MATRIX_SET:0,0,255,0,0,255"          # User taps 'E' - now message sent
-App → ESP32: "MATRIX_SET:0,1,255,0,0,255"          # User taps 'S'
-App → ESP32: "MATRIX_SET:0,3,255,0,0,255"          # User taps 'I'
+App → ESP32: "MATRIX_SET:110,255,0,0,255"          # User taps 'E' (LED 110) - now message sent
+App → ESP32: "MATRIX_SET:111,255,0,0,255"          # User taps 'S' (LED 111)
+App → ESP32: "MATRIX_SET:113,255,0,0,255"          # User taps 'I' (LED 113)
 ESP32: (Displays "ES I" in red)
-App → ESP32: "MATRIX_CLEAR:0,1"                    # User taps 'S' again to clear
+App → ESP32: "MATRIX_CLEAR:111"                    # User taps 'S' again to clear
 ESP32: (Displays "E  I" with S cleared)
+```
+
+### Clearing Matrix Pattern
+```
+App → ESP32: "MODE:MATRIX"                 # Switch to matrix mode
+# User creates some pattern...
+App → ESP32: "MATRIX_SET:110,255,0,0,255"  # Set several LEDs
+App → ESP32: "MATRIX_SET:111,255,0,0,255"
+App → ESP32: "MATRIX_SET:113,255,0,0,255"
+ESP32: (Displays pattern)
+# User presses "Clear All" button
+App → ESP32: "MATRIX_CLEAR_ALL"            # Single command clears everything
+ESP32: (All LEDs turn off)
+App: (Local display clears)
 ```
 
 ### Temperature Display Update
@@ -456,6 +492,17 @@ ESP32: (Clock stays on continuously, ignoring time schedule)
 ---
 
 ## Version History
+
+- **v1.3** (2025-12-11): Matrix API changed to use LED array indices
+  - **BREAKING CHANGE**: Matrix commands now use LED index (0-120) instead of row,col coordinates
+  - Changed `MATRIX_SET:row,col,r,g,b,brightness` to `MATRIX_SET:ledIndex,r,g,b,brightness`
+  - Changed `MATRIX_CLEAR:row,col` to `MATRIX_CLEAR:ledIndex`
+  - Added `MATRIX_CLEAR_ALL` command for bulk clearing all LEDs
+  - Added "Clear All" button to Matrix screen UI (MatrixScreen.kt:81-88)
+  - Added complete LED array layout documentation showing zigzag pattern (led_setup.md)
+  - App automatically converts row/column to LED index using zigzag algorithm (MatrixScreen.kt:35-46)
+  - Updated all matrix examples to use LED indices
+  - This change aligns the API with the physical LED wiring and simplifies ESP32 implementation
 
 - **v1.2** (2025-12-11): Updated for recent app enhancements
   - Changed SET_MODE to MODE format (MODE:CLOCK, MODE:DIGITAL, etc.)

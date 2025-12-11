@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +24,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.qlocktwo.WebSocketManager
 import com.example.qlocktwo.viewmodels.ColorViewModel
+
+/**
+ * Converts matrix row/column coordinates to LED array index.
+ * Based on the zigzag LED layout in led_setup.md (0-120).
+ *
+ * Matrix rows are displayed top to bottom (0-10), but LEDs are wired bottom to top.
+ * Even physical rows go left-to-right, odd rows go right-to-left.
+ */
+private fun rowColToLedIndex(row: Int, col: Int): Int {
+    // Convert matrix row to physical LED row (inverted)
+    val physicalRow = 10 - row
+    val baseIndex = physicalRow * 11
+
+    return if (physicalRow % 2 == 0) {
+        // Even rows: left to right (0, 2, 4, 6, 8, 10)
+        baseIndex + col
+    } else {
+        // Odd rows: right to left (1, 3, 5, 7, 9)
+        baseIndex + (10 - col)
+    }
+}
 
 @Composable
 fun MatrixScreen(
@@ -58,7 +80,8 @@ fun MatrixScreen(
 
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .weight(1f)
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -69,12 +92,13 @@ fun MatrixScreen(
                 onToggle = { row, col ->
                     val position = row to col
                     val existingColor = letterColors[position]
+                    val ledIndex = rowColToLedIndex(row, col)
 
                     if (existingColor == colorViewModel.selectedColor) {
                         // Same color - toggle off
                         letterColors = letterColors - position
                         // Send clear command to ESP32
-                        webSocketManager.sendMessage("MATRIX_CLEAR:$row,$col")
+                        webSocketManager.sendMessage("MATRIX_CLEAR:$ledIndex")
                     } else {
                         // No color or different color - set to current color
                         val newColor = colorViewModel.selectedColor
@@ -85,10 +109,26 @@ fun MatrixScreen(
                         val g = (newColor.green * 255).toInt()
                         val b = (newColor.blue * 255).toInt()
                         val brightness = colorViewModel.brightness.toInt()
-                        webSocketManager.sendMessage("MATRIX_SET:$row,$col,$r,$g,$b,$brightness")
+                        webSocketManager.sendMessage("MATRIX_SET:$ledIndex,$r,$g,$b,$brightness")
                     }
                 }
             )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Button(
+                onClick = {
+                    letterColors = emptyMap()  // Clear all local colors
+                    webSocketManager.sendMessage("MATRIX_CLEAR_ALL")
+                }
+            ) {
+                Text("Clear All")
+            }
         }
     }
 }
