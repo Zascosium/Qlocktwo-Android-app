@@ -41,6 +41,17 @@ class WebSocketManager {
     private val _currentTemperature = MutableStateFlow<Int?>(null)
     val currentTemperature: StateFlow<Int?> = _currentTemperature.asStateFlow()
 
+    // StateFlow für Schedule-Einstellungen
+    data class ScheduleSettings(
+        val enabled: Boolean,
+        val startHour: Int,
+        val startMinute: Int,
+        val endHour: Int,
+        val endMinute: Int
+    )
+    private val _currentSchedule = MutableStateFlow<ScheduleSettings?>(null)
+    val currentSchedule: StateFlow<ScheduleSettings?> = _currentSchedule.asStateFlow()
+
     private val client = HttpClient(CIO) {
         install(WebSockets)
     }
@@ -88,6 +99,45 @@ class WebSocketManager {
                                 if (temp != null) {
                                     _currentTemperature.value = temp
                                     println("Temperature updated: $temp°C")
+                                }
+                            }
+                            else if(msg.startsWith("SCHEDULE:")){
+                                // Parse und update Schedule
+                                val scheduleStr = msg.removePrefix("SCHEDULE:")
+                                if (scheduleStr == "OFF") {
+                                    _currentSchedule.value = ScheduleSettings(
+                                        enabled = false,
+                                        startHour = 7,
+                                        startMinute = 0,
+                                        endHour = 22,
+                                        endMinute = 0
+                                    )
+                                    println("Schedule updated: OFF")
+                                } else if (scheduleStr.startsWith("ON,")) {
+                                    // Format: ON,HH:MM,HH:MM
+                                    val parts = scheduleStr.removePrefix("ON,").split(",")
+                                    if (parts.size == 2) {
+                                        val startParts = parts[0].split(":")
+                                        val endParts = parts[1].split(":")
+                                        if (startParts.size == 2 && endParts.size == 2) {
+                                            val startHour = startParts[0].toIntOrNull()
+                                            val startMinute = startParts[1].toIntOrNull()
+                                            val endHour = endParts[0].toIntOrNull()
+                                            val endMinute = endParts[1].toIntOrNull()
+
+                                            if (startHour != null && startMinute != null &&
+                                                endHour != null && endMinute != null) {
+                                                _currentSchedule.value = ScheduleSettings(
+                                                    enabled = true,
+                                                    startHour = startHour,
+                                                    startMinute = startMinute,
+                                                    endHour = endHour,
+                                                    endMinute = endMinute
+                                                )
+                                                println("Schedule updated: ON from $startHour:$startMinute to $endHour:$endMinute")
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             messages.emit(msg)

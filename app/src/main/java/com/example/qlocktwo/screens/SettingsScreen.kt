@@ -58,15 +58,39 @@ fun SettingsScreen(
     var isScheduleEnabled by remember {
         mutableStateOf(prefs.getBoolean("schedule_enabled", false))
     }
-    var startHour by remember { mutableStateOf(prefs.getInt("start_hour", 7)) }
-    var startMinute by remember { mutableStateOf(prefs.getInt("start_minute", 0)) }
-    var endHour by remember { mutableStateOf(prefs.getInt("end_hour", 22)) }
-    var endMinute by remember { mutableStateOf(prefs.getInt("end_minute", 0)) }
+    var startHour by remember { mutableStateOf(prefs.getInt("start_hour", 21)) }
+    var startMinute by remember { mutableStateOf(prefs.getInt("start_minute", 45)) }
+    var endHour by remember { mutableStateOf(prefs.getInt("end_hour", 6)) }
+    var endMinute by remember { mutableStateOf(prefs.getInt("end_minute", 35)) }
 
     var ipAddress by remember { mutableStateOf(prefs.getString("ws_ip", "192.168.3.219") ?: "192.168.3.219") }
     var port by remember { mutableStateOf(prefs.getInt("ws_port", 81).toString()) }
     var ipError by remember { mutableStateOf(false) }
     var portError by remember { mutableStateOf(false) }
+
+    // Listen for schedule updates from ESP32
+    LaunchedEffect(webSocketManager) {
+        webSocketManager.currentSchedule.collect { scheduleSettings ->
+            scheduleSettings?.let {
+                isScheduleEnabled = it.enabled
+                startHour = it.startHour
+                startMinute = it.startMinute
+                endHour = it.endHour
+                endMinute = it.endMinute
+
+                // Save to SharedPreferences
+                prefs.edit()
+                    .putBoolean("schedule_enabled", it.enabled)
+                    .putInt("start_hour", it.startHour)
+                    .putInt("start_minute", it.startMinute)
+                    .putInt("end_hour", it.endHour)
+                    .putInt("end_minute", it.endMinute)
+                    .apply()
+
+                println("SettingsScreen: Schedule updated from ESP32 - enabled=${it.enabled}, ${it.startHour}:${it.startMinute} - ${it.endHour}:${it.endMinute}")
+            }
+        }
+    }
 
     Scaffold { paddingValues ->
         Column(
