@@ -5,7 +5,8 @@
       "WebSearch",
       "Bash(./gradlew build:*)",
       "Bash(done)",
-      "Bash(./gradlew assembleDebug:*)"
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

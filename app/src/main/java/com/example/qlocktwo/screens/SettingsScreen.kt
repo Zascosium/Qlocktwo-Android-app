@@ -63,7 +63,7 @@ fun SettingsScreen(
     var endHour by remember { mutableStateOf(prefs.getInt("end_hour", 22)) }
     var endMinute by remember { mutableStateOf(prefs.getInt("end_minute", 0)) }
 
-    var ipAddress by remember { mutableStateOf(prefs.getString("ws_ip", "192.168.3.210") ?: "192.168.3.210") }
+    var ipAddress by remember { mutableStateOf(prefs.getString("ws_ip", "192.168.3.219") ?: "192.168.3.219") }
     var port by remember { mutableStateOf(prefs.getInt("ws_port", 81).toString()) }
     var ipError by remember { mutableStateOf(false) }
     var portError by remember { mutableStateOf(false) }

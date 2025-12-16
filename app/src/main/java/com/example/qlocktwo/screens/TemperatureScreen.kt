@@ -30,14 +30,11 @@ fun TemperatureScreen(
     colorViewModel: ColorViewModel,
     webSocketManager: WebSocketManager
 ) {
-    val allMessages by webSocketManager.messages.collectAsState(initial = "")
-    // Logging der empfangenen Nachricht
-    Log.d("TemperatureScreen", "Received WebSocket message: $allMessages")
-    // Extrahiere die letzte TEMP-Nachricht aus dem Flow
-    val temperature = remember(allMessages) {
-        val tempMsg = allMessages.split("\n").lastOrNull { it.startsWith("TEMP:") }
-        tempMsg?.removePrefix("TEMP:")?.toIntOrNull() ?: 20
-    }
+    // Collect temperature directly from dedicated StateFlow
+    val temperature by webSocketManager.currentTemperature.collectAsState()
+
+    // Logging der Temperatur
+    Log.d("TemperatureScreen", "Current temperature: $temperature°C")
 
     val matrix = listOf(
         "ESKISTAFÜNF",
@@ -53,8 +50,10 @@ fun TemperatureScreen(
         "ZEHNEUNKUHR"
     )
 
-    val digit1 = if (temperature >= 10) temperature / 10 else -1  // -1 means no digit
-    val digit2 = temperature % 10
+    // Use default value of 20 if temperature is null
+    val tempValue = temperature ?: 20
+    val digit1 = if (tempValue >= 10) tempValue / 10 else -1  // -1 means no digit
+    val digit2 = tempValue % 10
 
     val pixelMatrix = createTemperatureMatrix(digit1, digit2)
 

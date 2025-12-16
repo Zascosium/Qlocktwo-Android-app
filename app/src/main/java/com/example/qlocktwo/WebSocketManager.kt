@@ -37,18 +37,22 @@ class WebSocketManager {
     private val _currentSettings = MutableStateFlow<String?>(null)
     val currentSettings: StateFlow<String?> = _currentSettings.asStateFlow()
 
+    // StateFlow für aktuelle Temperatur
+    private val _currentTemperature = MutableStateFlow<Int?>(null)
+    val currentTemperature: StateFlow<Int?> = _currentTemperature.asStateFlow()
+
     private val client = HttpClient(CIO) {
         install(WebSockets)
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private var currentHost: String = "192.168.3.210"
+    private var currentHost: String = "192.168.3.219"
     private var currentPort: Int = 81
 
     fun connectWithPrefs(context: Context) {
         val prefs = context.getSharedPreferences("QlockSettings", Context.MODE_PRIVATE)
-        val host = prefs.getString("ws_ip", "192.168.3.210") ?: "192.168.3.210"
+        val host = prefs.getString("ws_ip", "192.168.3.219") ?: "192.168.3.219"
         val port = prefs.getInt("ws_port", 81)
         connect(host, port)
     }
@@ -77,7 +81,15 @@ class WebSocketManager {
                             if (msg.startsWith("SETTINGS:")) {
                                 _currentSettings.value = msg
                             }
-
+                            else if(msg.startsWith("TEMP:")) {
+                                // Parse und update Temperatur
+                                val tempStr = msg.removePrefix("TEMP:")
+                                val temp = tempStr.toIntOrNull()
+                                if (temp != null) {
+                                    _currentTemperature.value = temp
+                                    println("Temperature updated: $temp°C")
+                                }
+                            }
                             messages.emit(msg)
                         }
                     }

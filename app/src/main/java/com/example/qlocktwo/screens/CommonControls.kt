@@ -28,7 +28,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,25 +48,44 @@ fun CommonControls(
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
-    // Slider value that responds to both user input AND ViewModel updates
-    var sliderValue by remember { mutableFloatStateOf(colorViewModel.brightness) }
+    // Track last sent brightness to avoid redundant sends
+    var lastSentBrightness by remember { mutableFloatStateOf(-1f) }
+
+    // Local slider state for instant UI feedback during dragging
+    var localSliderValue by remember { mutableFloatStateOf(colorViewModel.brightness) }
 
     // Track if user is actively dragging the slider
     var isDragging by remember { mutableStateOf(false) }
 
-    // Sync slider with ViewModel when ViewModel changes (e.g., from WebSocket)
+    // Sync local state with ViewModel when not dragging (handles WebSocket updates)
     LaunchedEffect(colorViewModel.brightness) {
         if (!isDragging) {
-            sliderValue = colorViewModel.brightness
+            localSliderValue = colorViewModel.brightness
         }
     }
 
-    // Debounce slider changes and send to ViewModel + WebSocket
-    LaunchedEffect(sliderValue) {
+    // Debounced WebSocket send during dragging
+    LaunchedEffect(localSliderValue, isDragging) {
         if (isDragging) {
-            delay(50)
-            colorViewModel.updateBrightness(sliderValue)
-            onSendMessage?.invoke(formatColorMessage(colorViewModel.selectedColor, sliderValue))
+            // Check if this value hasn't been sent yet and user is still dragging
+            if (isDragging && localSliderValue != lastSentBrightness) {
+                onSendMessage?.invoke(formatColorMessage(colorViewModel.selectedColor, localSliderValue))
+                lastSentBrightness = localSliderValue
+            }
+        }
+    }
+
+    // Handle drag end: update ViewModel and send final value
+    LaunchedEffect(isDragging) {
+        if (!isDragging && localSliderValue != colorViewModel.brightness) {
+            // Update ViewModel with final value
+            colorViewModel.updateBrightness(localSliderValue)
+
+            // Send final value if it hasn't been sent yet
+            if (localSliderValue != lastSentBrightness) {
+                onSendMessage?.invoke(formatColorMessage(colorViewModel.selectedColor, localSliderValue))
+                lastSentBrightness = localSliderValue
+            }
         }
     }
 
@@ -99,10 +117,10 @@ fun CommonControls(
 
         // Brightness Slider (without label)
         Slider(
-            value = sliderValue,
+            value = localSliderValue,
             onValueChange = { newValue ->
                 isDragging = true
-                sliderValue = newValue
+                localSliderValue = newValue
             },
             onValueChangeFinished = {
                 isDragging = false

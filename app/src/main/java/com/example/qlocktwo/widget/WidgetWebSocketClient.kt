@@ -24,7 +24,7 @@ class WidgetWebSocketClient(private val context: Context) {
     suspend fun sendModeCommand(modeMessage: String): Boolean {
         // Read connection settings from SharedPreferences
         val prefs = context.getSharedPreferences("QlockSettings", Context.MODE_PRIVATE)
-        val host = prefs.getString("ws_ip", "192.168.3.210") ?: "192.168.3.210"
+        val host = prefs.getString("ws_ip", "192.168.3.219") ?: "192.168.3.219"
         val port = prefs.getInt("ws_port", 81)
 
         val client = HttpClient(CIO) {
